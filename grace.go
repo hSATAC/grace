@@ -274,11 +274,8 @@ func (p *Process) Restart(listeners []Listener) (err error) {
 		return err
 	}
 
-	// In order to keep the working directory the same as when we started.
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
+	// Use PWD instead of os.Getwd(), we don't want to follow symbolic link because Capistrano
+	wd := os.Getenv("PWD")
 
 	// Pass on the environment and replace the old count key with the new one.
 	var env []string
