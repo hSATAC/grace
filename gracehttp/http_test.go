@@ -24,7 +24,7 @@ var (
 	// Debug logging.
 	debugLog          = flag.Bool("debug", false, "enable debug logging")
 	testserverCommand = &tool.CommandBuild{
-		ImportPath: "github.com/facebookgo/grace/gracehttp/testserver",
+		ImportPath: "github.com/hSATAC/grace/gracehttp/testserver",
 	}
 )
 

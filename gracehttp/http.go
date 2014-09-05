@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/facebookgo/grace"
+	"github.com/hSATAC/grace"
 )
 
 var (
