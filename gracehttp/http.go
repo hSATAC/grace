@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -27,6 +28,7 @@ type App struct {
 	Servers   []*http.Server
 	listeners []grace.Listener
 	errors    chan error
+	Pidfile   string
 }
 
 // Listen will inherit or create new listeners. Returns a bool indicating if we
@@ -101,10 +103,86 @@ func (a *App) Wait() error {
 	}
 }
 
+func (a *App) WritePidfile() error {
+	if a.Pidfile == "" {
+		return nil
+	}
+
+	pidStr := fmt.Sprintf("%d", os.Getpid())
+
+	_, err := os.Stat(a.Pidfile)
+
+	if err == nil {
+		bytes, err := ioutil.ReadFile(a.Pidfile)
+		filePid := string(bytes)
+		if err == nil && filePid == pidStr {
+			return nil
+		} else if filePid != "" {
+			return fmt.Errorf("PID file %s already exists. Please delete it and try again.", a.Pidfile)
+		}
+	}
+
+	err = ioutil.WriteFile(a.Pidfile, []byte(pidStr), 0666)
+	return err
+}
+
+func (a *App) WriteParentPidfile(ppid int) error {
+	if a.Pidfile == "" {
+		return nil
+	}
+
+	pidStr := fmt.Sprintf("%d", os.Getpid())
+	ppidStr := fmt.Sprintf("%d", ppid)
+
+	_, err := os.Stat(a.Pidfile)
+
+	if err != nil {
+		return err
+	}
+
+	bytes, err := ioutil.ReadFile(a.Pidfile)
+	filePid := string(bytes)
+
+	if err != nil {
+		return err
+	}
+
+	if filePid == pidStr {
+		return nil
+	} else if filePid == ppidStr {
+		err = ioutil.WriteFile(a.Pidfile, []byte(pidStr), 0666)
+	} else if filePid != "" {
+		return fmt.Errorf("PID file %s already exists and belongs to other process.", a.Pidfile)
+	}
+
+	return err
+}
+
+func (a *App) DeletePidfile() error {
+	_, err := os.Stat(a.Pidfile)
+	if err != nil {
+		return nil
+	}
+
+	pidStr := fmt.Sprintf("%d", os.Getpid())
+
+	bytes, err := ioutil.ReadFile(a.Pidfile)
+	filePid := string(bytes)
+
+	if err != nil {
+		return err
+	}
+
+	if filePid != pidStr {
+		return fmt.Errorf("Trying to delete a pidfile with wrong owner. (%s)", filePid)
+	}
+	return os.Remove(a.Pidfile)
+}
+
 // Serve will serve the given http.Servers and will monitor for signals
 // allowing for graceful termination (SIGTERM) or restart (SIGUSR2).
-func Serve(servers ...*http.Server) error {
-	app := &App{Servers: servers}
+func Serve(pidfile string, servers ...*http.Server) error {
+	app := &App{Servers: servers, Pidfile: pidfile}
 	inherited, err := app.Listen()
 	if err != nil {
 		return err
@@ -117,9 +195,19 @@ func Serve(servers ...*http.Server) error {
 				log.Printf("Listening on init activated %s", pprintAddr(app.listeners))
 			} else {
 				const msg = "Graceful handoff of %s with new pid %d and old pid %d"
+				err = app.WriteParentPidfile(ppid)
+				if err != nil {
+					return err
+				}
+				defer app.DeletePidfile()
 				log.Printf(msg, pprintAddr(app.listeners), os.Getpid(), ppid)
 			}
 		} else {
+			err = app.WritePidfile()
+			if err != nil {
+				return err
+			}
+			defer app.DeletePidfile()
 			const msg = "Serving %s with pid %d"
 			log.Printf(msg, pprintAddr(app.listeners), os.Getpid())
 		}
