@@ -13,6 +13,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/hSATAC/grace"
 )
@@ -115,15 +117,23 @@ func (a *App) WritePidfile() error {
 	if err == nil {
 		bytes, err := ioutil.ReadFile(a.Pidfile)
 		filePid := string(bytes)
+		filePid = strings.Trim(filePid, "\n")
 		if err == nil && filePid == pidStr {
 			return nil
 		} else if filePid != "" {
-			return fmt.Errorf("PID file %s already exists. Please delete it and try again.", a.Pidfile)
+			if processExistsAtPidString(filePid) {
+				return fmt.Errorf("PID file %s already exists. And the process with pid %s is running.", a.Pidfile, filePid)
+			} else {
+				//Delete dead pidfile
+				err := os.Remove(a.Pidfile)
+				if err != nil {
+					return fmt.Errorf("Failed to remove dead pidfile: %s", a.Pidfile)
+				}
+			}
 		}
 	}
 
-	err = ioutil.WriteFile(a.Pidfile, []byte(pidStr), 0666)
-	return err
+	return ioutil.WriteFile(a.Pidfile, []byte(pidStr), 0666)
 }
 
 func (a *App) WriteParentPidfile(ppid int) error {
@@ -241,4 +251,21 @@ func pprintAddr(listeners []grace.Listener) []byte {
 		fmt.Fprint(out, l.Addr())
 	}
 	return out.Bytes()
+}
+
+// Used for checking if a process exists in pidfile
+func processExistsAtPidString(pidStr string) bool {
+	// Check if the process exists
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		fmt.Println(err)
+		return true // Convert error, can't determine.
+	}
+
+	_, err = os.FindProcess(pid)
+	if err != nil {
+		return true
+	}
+
+	return false
 }
