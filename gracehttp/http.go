@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/hSATAC/grace"
 )
@@ -258,14 +259,31 @@ func processExistsAtPidString(pidStr string) bool {
 	// Check if the process exists
 	pid, err := strconv.Atoi(pidStr)
 	if err != nil {
-		fmt.Println(err)
 		return true // Convert error, can't determine.
 	}
 
-	_, err = os.FindProcess(pid)
+	process, err := os.FindProcess(pid)
 	if err != nil {
 		return true
 	}
 
-	return false
+	err = process.Signal(os.Signal(syscall.Signal(0)))
+
+	if err == nil {
+		return true
+	}
+
+	errno, ok := err.(syscall.Errno)
+	if !ok {
+		return true
+	}
+
+	switch errno {
+	case syscall.ESRCH:
+		return false // Only here we could be sure the process does not exist.
+	case syscall.EPERM:
+		return true
+	}
+
+	return true
 }
