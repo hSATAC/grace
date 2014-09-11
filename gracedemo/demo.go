@@ -21,11 +21,15 @@ var (
 
 func main() {
 	flag.Parse()
-	gracehttp.Serve("test.pid",
+	err := gracehttp.Serve("test.pid",
 		&http.Server{Addr: *address0, Handler: newHandler("Zero  ")},
 		&http.Server{Addr: *address1, Handler: newHandler("First ")},
 		&http.Server{Addr: *address2, Handler: newHandler("Second")},
 	)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
 
 func newHandler(name string) http.Handler {
