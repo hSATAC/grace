@@ -295,7 +295,7 @@ func (p *Process) Restart(listeners []Listener) (err error) {
 	return err
 }
 
-var defaultProcess = &Process{}
+var defaultProcess = &Process{60 * time.Second}
 
 // Wait for signals to gracefully terminate or restart the process.
 func Wait(listeners []Listener) (err error) {
