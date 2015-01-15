@@ -275,7 +275,7 @@ func processExistsAtPidString(pidStr string) bool {
 
 	errno, ok := err.(syscall.Errno)
 	if !ok {
-		return true
+		return false
 	}
 
 	switch errno {
